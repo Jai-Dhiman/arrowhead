@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::ai_conversation::{LLMClient, Message, MessageRole};
-use crate::cli::{ChatArgs, Commands, GoalAction, GoalArgs, NoteAction, NoteArgs, TodoAction, TodoArgs};
+use crate::cli::{Commands, GoalAction, GoalArgs, NoteAction, NoteArgs, TodoAction, TodoArgs};
 
 /// Represents a parsed natural language command
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -599,8 +599,9 @@ impl NLCommandParser {
                 }))
             }
             "start_chat" => {
-                let message = parsed.entities.get("initial_message").cloned();
-                Ok(Commands::Chat(ChatArgs { message }))
+                // Chat functionality is now handled by the main interactive mode
+                // Return a general help response instead
+                Err(anyhow::anyhow!("Chat mode is active by default. How can I help you?"))
             }
             _ => Err(anyhow::anyhow!("Unknown intent: {}", parsed.intent)),
         }

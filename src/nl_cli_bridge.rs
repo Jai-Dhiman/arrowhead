@@ -65,15 +65,16 @@ impl Default for NLBridgeConfig {
 impl NLCLIBridge {
     /// Create a new NL CLI bridge
     pub fn new(
-        llm_client: Box<dyn LLMClient>,
+        command_client: Box<dyn LLMClient>,
+        conversation_client: Box<dyn LLMClient>,
         _config: NLBridgeConfig,
     ) -> Result<Self> {
         // Create natural language parser
-        let nl_parser = NLCommandParser::new(llm_client);
+        let nl_parser = NLCommandParser::new(command_client);
         
-        // Create conversational interface
+        // Create conversational interface with the real AI client
         let conv_config = ConversationalInterfaceConfig::default();
-        let conversational_interface = ConversationalInterface::new(nl_parser, conv_config)?;
+        let conversational_interface = ConversationalInterface::new(nl_parser, conv_config, conversation_client)?;
         
         // Create help system
         let help_system = IntelligentHelpSystem::new(None);
@@ -302,7 +303,7 @@ impl NLCLIBridge {
     /// Execute a CLI command using the existing router
     async fn execute_command(&self, command: Commands, adapter: &ObsidianAdapter) -> Result<String> {
         // Create a CLI struct with the command
-        let cli = Cli { command };
+        let cli = Cli { command: Some(command) };
         
         // Execute the command through the existing router
         match route_command(cli, adapter).await {
@@ -566,7 +567,7 @@ impl NLCLIBridge {
 mod tests {
     use super::*;
     use crate::ai_conversation::{Message, MessageRole};
-    use crate::nl_command_parser::AlternativeInterpretation;
+    
     use async_trait::async_trait;
     use chrono::Utc;
     use std::collections::HashMap;

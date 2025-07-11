@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::time::Duration;
 use tokio::time::sleep;
 use crate::ai_conversation::AIConversationEngine;
-use log::{error, warn, info, debug};
+use log::{error, warn, info};
 
 /// Jira authentication configuration
 #[derive(Debug, Clone)]
@@ -15,7 +15,31 @@ pub enum JiraAuth {
     ApiToken { email: String, token: String },
     /// Basic authentication (username + password) - less secure, not recommended
     Basic { username: String, password: String },
-    /// OAuth 2.0 authentication (not implemented yet)
+    /// TODO: Implement OAuth 2.0 authentication
+    /// Current state: OAuth variant exists but authentication flow is not implemented
+    /// 
+    /// Implementation requirements:
+    /// 1. OAuth 2.0 flow implementation:
+    ///    - Authorization code flow for web applications
+    ///    - Device code flow for CLI applications
+    ///    - Handle authorization URL generation
+    ///    - Token exchange and refresh logic
+    /// 2. Token management:
+    ///    - Secure token storage (keychain/credential manager)
+    ///    - Automatic token refresh before expiration
+    ///    - Handle token revocation and re-authentication
+    /// 3. Jira-specific OAuth:
+    ///    - Register application with Jira/Atlassian
+    ///    - Handle Jira's OAuth 2.0 scopes and permissions
+    ///    - Support both Cloud and Server/Data Center instances
+    /// 4. Security considerations:
+    ///    - Use PKCE (Proof Key for Code Exchange) for security
+    ///    - Validate state parameter to prevent CSRF attacks
+    ///    - Secure redirect URI handling
+    /// 5. User experience:
+    ///    - Clear authentication prompts and error messages
+    ///    - Fallback to other auth methods if OAuth fails
+    ///    - Support for multiple Jira instances/accounts
     OAuth { token: String },
 }
 
@@ -1835,7 +1859,30 @@ impl JiraAdapter {
                 let mut sprint_points = 0.0;
                 for issue in issues.issues {
                     // Extract story points from custom fields (this would need to be configured)
-                    // For now, we'll use a placeholder calculation
+                    // TODO: Implement proper story points extraction
+                    // Current state: Using placeholder calculation of 1 point per issue
+                    // 
+                    // Implementation requirements:
+                    // 1. Custom field mapping:
+                    //    - Identify story points custom field ID for this Jira instance
+                    //    - Support different field names ("Story Points", "Points", etc.)
+                    //    - Handle different field types (number, select, etc.)
+                    // 2. Configuration management:
+                    //    - Allow users to configure story points field mapping
+                    //    - Support multiple field mappings for different projects
+                    //    - Validate field existence and accessibility
+                    // 3. Data extraction:
+                    //    - Parse custom field values from issue JSON
+                    //    - Handle null/missing story points gracefully
+                    //    - Support different point scales (Fibonacci, T-shirt sizes, etc.)
+                    // 4. Fallback strategies:
+                    //    - Use issue count if story points unavailable
+                    //    - Allow manual point assignment for unpointed issues
+                    //    - Provide estimation based on issue type or complexity
+                    // 5. Validation and error handling:
+                    //    - Validate story points are numeric and positive
+                    //    - Handle decimal story points appropriately
+                    //    - Log issues with missing or invalid story points
                     sprint_points += 1.0; // Placeholder: 1 point per issue
                 }
                 total_story_points += sprint_points;

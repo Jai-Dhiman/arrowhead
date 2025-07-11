@@ -4,10 +4,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-use crate::ai_conversation::{AIConversationEngine, LLMClient, Message, MessageRole};
+use crate::ai_conversation::{AIConversationEngine, LLMClient};
 use crate::cli::Commands;
 use crate::nl_command_parser::{NLCommandParser, ParsedCommand};
-use async_trait::async_trait;
 
 /// Represents the state of a conversation session
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -117,46 +116,7 @@ impl Default for ConversationContext {
     }
 }
 
-/// Simple mock LLM client for basic conversational responses
-struct MockLLMClient {
-    default_response: String,
-}
-
-impl MockLLMClient {
-    fn new() -> Self {
-        Self {
-            default_response: "I understand. How can I help you further?".to_string(),
-        }
-    }
-}
-
-#[async_trait]
-impl LLMClient for MockLLMClient {
-    async fn send_message(&self, _messages: Vec<Message>) -> Result<Message> {
-        Ok(Message {
-            id: "mock".to_string(),
-            role: MessageRole::Assistant,
-            content: self.default_response.clone(),
-            timestamp: Utc::now(),
-            function_call: None,
-        })
-    }
-
-    async fn stream_response(&self, messages: Vec<Message>) -> Result<tokio::sync::mpsc::Receiver<String>> {
-        let (tx, rx) = tokio::sync::mpsc::channel(100);
-        let response = self.send_message(messages).await?;
-        let _ = tx.send(response.content).await;
-        Ok(rx)
-    }
-
-    async fn function_calling(&self, messages: Vec<Message>, _functions: Vec<crate::ai_conversation::FunctionSchema>) -> Result<Message> {
-        self.send_message(messages).await
-    }
-
-    fn get_model_name(&self) -> String {
-        "mock-conversational-model".to_string()
-    }
-}
+// MockLLMClient removed - we now use real AI clients
 
 /// Main conversational interface manager
 pub struct ConversationalInterface {
@@ -199,10 +159,10 @@ impl ConversationalInterface {
     pub fn new(
         nl_parser: NLCommandParser,
         config: ConversationalInterfaceConfig,
+        ai_client: Box<dyn LLMClient>,
     ) -> Result<Self> {
-        // Create a simple AI engine without LLM client for now
-        // We'll handle AI responses directly in the conversational interface
-        let ai_engine = AIConversationEngine::new(Box::new(MockLLMClient::new()));
+        // Create AI engine with the provided client
+        let ai_engine = AIConversationEngine::new(ai_client);
         
         Ok(Self {
             ai_engine,

@@ -154,7 +154,7 @@ impl WorkflowTemplateEngine {
         let workflow_id = uuid::Uuid::new_v4().to_string();
 
         // Update usage count
-        if let Some(mut tmpl) = self.templates.write().await.get_mut(template_id) {
+        if let Some(tmpl) = self.templates.write().await.get_mut(template_id) {
             tmpl.usage_count += 1;
         }
 
@@ -275,7 +275,7 @@ impl WorkflowTemplateEngine {
         template: &WorkflowTemplate,
         parameters: &HashMap<String, serde_json::Value>,
     ) -> Result<WorkflowDefinition> {
-        let mut workflow_definition = template.template_definition.clone();
+        let workflow_definition = template.template_definition.clone();
         
         // Replace placeholders in workflow definition
         let serialized = serde_json::to_string(&workflow_definition)?;

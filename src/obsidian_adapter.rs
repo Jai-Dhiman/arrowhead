@@ -1494,6 +1494,31 @@ Content to analyze:
                     similarity,
                     metadata: doc_embedding.metadata.clone(),
                     snippet,
+                    // TODO: Implement search result highlighting
+                    // Current state: Empty highlights vector, no text highlighting
+                    // 
+                    // Implementation requirements:
+                    // 1. Query term extraction:
+                    //    - Parse search query to extract individual terms
+                    //    - Handle quoted phrases, wildcards, and special operators
+                    //    - Support stemming and fuzzy matching
+                    // 2. Text highlighting:
+                    //    - Find all occurrences of query terms in the snippet
+                    //    - Calculate character positions for highlighting
+                    //    - Handle case-insensitive matching
+                    //    - Support partial word matches and synonyms
+                    // 3. Highlight data structure:
+                    //    - Create highlight spans with start/end positions
+                    //    - Include highlight type (exact match, fuzzy, etc.)
+                    //    - Support multiple highlight colors/styles
+                    // 4. Context preservation:
+                    //    - Ensure highlights align with snippet boundaries
+                    //    - Handle multi-line highlights properly
+                    //    - Preserve markdown formatting around highlights
+                    // 5. Performance considerations:
+                    //    - Optimize for large documents and many search terms
+                    //    - Cache highlighting results for repeated searches
+                    //    - Limit highlight processing time for responsiveness
                     highlights: vec![], // TODO: Implement highlighting
                 }
             })
@@ -3127,6 +3152,42 @@ Return a JSON object with this structure:
         // For now, return empty list
         // In a real implementation, this would query the Obsidian API
         Ok(vec![])
+    }
+
+    pub async fn list_files_in_folder(&self, folder_path: &str) -> Result<Vec<String>> {
+        // Create a URL to list files in the given folder
+        let url = format!("{}/vault/{}/", self.base_url, folder_path);
+        
+        let response = self
+            .add_auth_header(self.client.get(&url).header("Accept", "application/json"))
+            .send()
+            .await
+            .context(format!("Failed to send GET request to {}", url))?;
+
+        if response.status().is_success() {
+            let response_text = response
+                .text()
+                .await
+                .context("Failed to read response text")?;
+            
+            // Try to parse as JSON array of file names
+            let files: Vec<String> = serde_json::from_str(&response_text)
+                .context("Failed to parse file list response")?;
+            
+            Ok(files)
+        } else {
+            let status = response.status();
+            let error_text = response
+                .text()
+                .await
+                .unwrap_or_else(|_| "Unknown error".to_string());
+            bail!(
+                "MCP server returned error {}: {}. URL: {}",
+                status,
+                error_text,
+                url
+            )
+        }
     }
 
     /// Delete a note

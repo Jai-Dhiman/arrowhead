@@ -1,0 +1,3 @@
+# Netlify redirects for installation scripts
+/ https://raw.githubusercontent.com/yourusername/arrowhead/main/install.sh 200
+/windows https://raw.githubusercontent.com/yourusername/arrowhead/main/install.ps1 200

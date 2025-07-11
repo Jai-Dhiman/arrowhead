@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 #[clap(propagate_version = true)]
 pub struct Cli {
     #[clap(subcommand)]
-    pub command: Commands,
+    pub command: Option<Commands>,
 }
 
 #[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
@@ -17,8 +17,8 @@ pub enum Commands {
     Goal(GoalArgs),
     /// Manage notes
     Note(NoteArgs),
-    /// Open a chat session
-    Chat(ChatArgs),
+    /// Manage configuration (API keys, settings, etc.)
+    Config(ConfigArgs),
 }
 
 #[derive(Args, Debug, Clone, Serialize, Deserialize)]
@@ -130,12 +130,21 @@ pub enum NoteAction {
     }
 }
 
+
 #[derive(Args, Debug, Clone, Serialize, Deserialize)]
-pub struct ChatArgs {
-    /// Optional initial message to start the chat with
-    pub message: Option<String>,
-    // Further chat-specific options can be added here
-    // e.g., --model, --temperature, --persona
+pub struct ConfigArgs {
+    /// Create sample configuration file
+    #[clap(long)]
+    pub init: bool,
+    /// Show current configuration
+    #[clap(long)]
+    pub show: bool,
+    /// Set configuration values (e.g., gemini.api_key, openai.api_key, provider)
+    #[clap(long)]
+    pub set: Option<String>,
+    /// Value to set (used with --set)
+    #[clap(long)]
+    pub value: Option<String>,
 }
 
 // Example usage (will be in main.rs)

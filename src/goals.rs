@@ -1,5 +1,5 @@
 use crate::cli::{GoalAction, GoalArgs};
-use crate::obsidian_adapter::{MarkdownFile, ObsidianAdapter}; // Reusing for parsing
+use crate::obsidian_adapter::ObsidianAdapter; // Reusing for parsing
 use crate::utils::slugify; // Import slugify from utils
 use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
@@ -78,6 +78,32 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             if let Some(s) = status {
                 println!("  Status filter: {}", s);
             }
+            // TODO: Implement goal listing functionality
+            // Current state: Placeholder that just prints a message
+            // 
+            // Implementation requirements:
+            // 1. Directory scanning approach:
+            //    - Use Obsidian API to GET /vault/ to list all files
+            //    - Filter results by path prefix (e.g., starts with "Goals/")
+            //    - Parse each goal file to extract metadata and status
+            //    - Apply status filter if provided by user
+            // 2. Parse goal files:
+            //    - Extract frontmatter data (title, description, status, target_date, tags)
+            //    - Parse goal content for progress indicators
+            //    - Calculate completion percentage if applicable
+            // 3. Display formatting:
+            //    - Group goals by status (active, achieved, on-hold, etc.)
+            //    - Show progress indicators and target dates
+            //    - Color-code based on status and urgency
+            //    - Display tags and categories
+            // 4. Sorting and filtering:
+            //    - Sort by target date, creation date, or priority
+            //    - Filter by status, tags, or date ranges
+            //    - Support search within goal titles and descriptions
+            // 5. Progress tracking:
+            //    - Show progress towards target dates
+            //    - Highlight overdue or at-risk goals
+            //    - Display achievement statistics
             println!("(Placeholder: Actual goal listing logic to be implemented. Similar challenges to other types.)");
         }
         GoalAction::Update {

@@ -3,9 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
-// use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncWriteExt, AsyncBufReadExt, BufReader};
 use tokio::net::TcpStream;
 use tokio::process::{Child, Command};
+use tokio_tungstenite::{connect_async, tungstenite::protocol::Message};
+use futures_util::{SinkExt, StreamExt};
 use uuid::Uuid;
 
 /// MCP Protocol version
@@ -1236,6 +1238,8 @@ pub struct MCPClient {
     state: Arc<RwLock<MCPConnectionState>>,
     pending_requests: Arc<RwLock<HashMap<String, tokio::sync::oneshot::Sender<serde_json::Value>>>>,
     child_process: Option<Arc<RwLock<Option<Child>>>>,
+    websocket_connection: Option<Arc<RwLock<Option<tokio_tungstenite::WebSocketStream<tokio_tungstenite::MaybeTlsStream<TcpStream>>>>>>,
+    tcp_connection: Option<Arc<RwLock<Option<TcpStream>>>>,
     tool_registry: Arc<ToolRegistry>,
     plugin_manager: Arc<RwLock<plugin::PluginManager>>,
     server_capabilities: Arc<RwLock<ServerCapabilities>>,
@@ -1250,6 +1254,8 @@ impl MCPClient {
             state: Arc::new(RwLock::new(MCPConnectionState::Disconnected)),
             pending_requests: Arc::new(RwLock::new(HashMap::new())),
             child_process: None,
+            websocket_connection: None,
+            tcp_connection: None,
             tool_registry: Arc::new(ToolRegistry::new()),
             plugin_manager: Arc::new(RwLock::new(plugin::PluginManager::new())),
             server_capabilities: Arc::new(RwLock::new(ServerCapabilities::default())),
@@ -1276,16 +1282,27 @@ impl MCPClient {
                 Ok(())
             }
             MCPTransport::TCP { host, port } => {
-                let _stream = TcpStream::connect(format!("{}:{}", host, port)).await
+                let stream = TcpStream::connect(format!("{}:{}", host, port)).await
                     .context("Failed to connect to TCP server")?;
+                
+                // Store the TCP connection
+                self.tcp_connection = Some(Arc::new(RwLock::new(Some(stream))));
                 
                 let mut state = self.state.write().await;
                 *state = MCPConnectionState::Connected;
                 Ok(())
             }
-            MCPTransport::WebSocket { url: _ } => {
-                // TODO: Implement WebSocket connection
-                anyhow::bail!("WebSocket transport not yet implemented");
+            MCPTransport::WebSocket { url } => {
+                // Connect to WebSocket server
+                let (ws_stream, _) = connect_async(url).await
+                    .context("Failed to connect to WebSocket server")?;
+                
+                // Store the WebSocket connection
+                self.websocket_connection = Some(Arc::new(RwLock::new(Some(ws_stream))));
+                
+                let mut state = self.state.write().await;
+                *state = MCPConnectionState::Connected;
+                Ok(())
             }
             MCPTransport::Process { command, args } => {
                 let child = Command::new(command)
@@ -1654,19 +1671,276 @@ impl MCPClient {
                 println!("{}", json);
                 Ok(())
             }
-            MCPTransport::TCP { .. } => {
-                // TODO: Implement TCP message sending
-                anyhow::bail!("TCP message sending not yet implemented");
+            MCPTransport::TCP { host: _, port: _ } => {
+                // Ensure TCP connection is established
+                if self.tcp_connection.is_none() {
+                    anyhow::bail!("TCP connection not initialized. Call connect() first.");
+                }
+                
+                if let Some(tcp_conn) = &self.tcp_connection {
+                    let mut stream = tcp_conn.write().await;
+                    if let Some(tcp_stream) = stream.as_mut() {
+                        // MCP over TCP uses JSON-RPC with newline framing
+                        let message_with_newline = format!("{}\n", json);
+                        
+                        // Send message with timeout
+                        tokio::time::timeout(
+                            std::time::Duration::from_millis(self.config.timeout_ms),
+                            tcp_stream.write_all(message_with_newline.as_bytes())
+                        ).await
+                        .context("TCP message send timeout")?
+                        .context("Failed to send TCP message")?;
+                        
+                        // Ensure message is flushed
+                        tokio::time::timeout(
+                            std::time::Duration::from_millis(self.config.timeout_ms),
+                            tcp_stream.flush()
+                        ).await
+                        .context("TCP message flush timeout")?
+                        .context("Failed to flush TCP message")?;
+                        
+                        Ok(())
+                    } else {
+                        anyhow::bail!("TCP connection not established");
+                    }
+                } else {
+                    anyhow::bail!("TCP connection not initialized");
+                }
             }
             MCPTransport::WebSocket { .. } => {
-                // TODO: Implement WebSocket message sending
-                anyhow::bail!("WebSocket message sending not yet implemented");
+                // Send message over WebSocket
+                if let Some(ws_conn) = &self.websocket_connection {
+                    let mut ws_stream = ws_conn.write().await;
+                    if let Some(stream) = ws_stream.as_mut() {
+                        let message = Message::Text(json);
+                        stream.send(message).await
+                            .context("Failed to send WebSocket message")?;
+                        Ok(())
+                    } else {
+                        anyhow::bail!("WebSocket connection not established");
+                    }
+                } else {
+                    anyhow::bail!("WebSocket connection not initialized");
+                }
             }
             MCPTransport::Process { .. } => {
-                // TODO: Implement process message sending
-                anyhow::bail!("Process message sending not yet implemented");
+                // Send JSON-RPC message to child process stdin
+                if let Some(child_process) = &self.child_process {
+                    let mut child_guard = child_process.write().await;
+                    if let Some(child) = child_guard.as_mut() {
+                        if let Some(stdin) = child.stdin.as_mut() {
+                            // MCP over process uses newline-delimited JSON-RPC
+                            let message_with_newline = format!("{}\n", json);
+                            
+                            // Send message with timeout
+                            tokio::time::timeout(
+                                std::time::Duration::from_millis(self.config.timeout_ms),
+                                stdin.write_all(message_with_newline.as_bytes())
+                            ).await
+                            .context("Process message send timeout")?
+                            .context("Failed to send message to process stdin")?;
+                            
+                            // Flush to ensure message is sent
+                            tokio::time::timeout(
+                                std::time::Duration::from_millis(self.config.timeout_ms),
+                                stdin.flush()
+                            ).await
+                            .context("Process message flush timeout")?
+                            .context("Failed to flush process stdin")?;
+                            
+                            Ok(())
+                        } else {
+                            anyhow::bail!("Process stdin not available");
+                        }
+                    } else {
+                        anyhow::bail!("Child process not running");
+                    }
+                } else {
+                    anyhow::bail!("Process not initialized. Call connect() first.");
+                }
             }
         }
+    }
+
+    /// Read a response from the child process stdout
+    pub async fn read_process_response(&self) -> Result<Option<String>> {
+        if let Some(child_process) = &self.child_process {
+            let mut child_guard = child_process.write().await;
+            if let Some(child) = child_guard.as_mut() {
+                if let Some(stdout) = child.stdout.as_mut() {
+                    let mut reader = BufReader::new(stdout);
+                    let mut line = String::new();
+                    
+                    // Read a line with timeout
+                    match tokio::time::timeout(
+                        std::time::Duration::from_millis(self.config.timeout_ms),
+                        reader.read_line(&mut line)
+                    ).await {
+                        Ok(Ok(0)) => {
+                            // EOF reached, process might have terminated
+                            Ok(None)
+                        }
+                        Ok(Ok(_)) => {
+                            // Successfully read a line
+                            Ok(Some(line.trim_end().to_string()))
+                        }
+                        Ok(Err(e)) => {
+                            Err(anyhow::anyhow!("Failed to read from process stdout: {}", e))
+                        }
+                        Err(_) => {
+                            Err(anyhow::anyhow!("Timeout reading from process stdout"))
+                        }
+                    }
+                } else {
+                    anyhow::bail!("Process stdout not available");
+                }
+            } else {
+                anyhow::bail!("Child process not running");
+            }
+        } else {
+            anyhow::bail!("Process not initialized");
+        }
+    }
+
+    /// Check if the child process is still running
+    pub async fn is_process_alive(&self) -> bool {
+        if let Some(child_process) = &self.child_process {
+            let mut child_guard = child_process.write().await;
+            if let Some(child) = child_guard.as_mut() {
+                match child.try_wait() {
+                    Ok(None) => true,  // Process is still running
+                    Ok(Some(_)) => false, // Process has exited
+                    Err(_) => false,   // Error checking process status
+                }
+            } else {
+                false
+            }
+        } else {
+            false
+        }
+    }
+
+    /// Restart the child process if it has crashed
+    pub async fn restart_process_if_needed(&mut self) -> Result<()> {
+        if !self.is_process_alive().await {
+            // Process has crashed, restart it
+            if let MCPTransport::Process { command, args } = &self.config.transport {
+                let child = Command::new(command)
+                    .args(args)
+                    .stdin(std::process::Stdio::piped())
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped())
+                    .spawn()
+                    .context("Failed to restart MCP server process")?;
+
+                self.child_process = Some(Arc::new(RwLock::new(Some(child))));
+                
+                let mut state = self.state.write().await;
+                *state = MCPConnectionState::Connected;
+                
+                Ok(())
+            } else {
+                anyhow::bail!("Cannot restart: not a process transport");
+            }
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Read stderr from the child process for error messages and logging
+    pub async fn read_process_stderr(&self) -> Result<Option<String>> {
+        if let Some(child_process) = &self.child_process {
+            let mut child_guard = child_process.write().await;
+            if let Some(child) = child_guard.as_mut() {
+                if let Some(stderr) = child.stderr.as_mut() {
+                    let mut reader = BufReader::new(stderr);
+                    let mut line = String::new();
+                    
+                    // Read a line with shorter timeout for stderr (non-blocking)
+                    match tokio::time::timeout(
+                        std::time::Duration::from_millis(100), // Shorter timeout for stderr
+                        reader.read_line(&mut line)
+                    ).await {
+                        Ok(Ok(0)) => {
+                            // EOF reached
+                            Ok(None)
+                        }
+                        Ok(Ok(_)) => {
+                            // Successfully read a line
+                            Ok(Some(line.trim_end().to_string()))
+                        }
+                        Ok(Err(e)) => {
+                            Err(anyhow::anyhow!("Failed to read from process stderr: {}", e))
+                        }
+                        Err(_) => {
+                            // Timeout is expected for stderr when no errors
+                            Ok(None)
+                        }
+                    }
+                } else {
+                    anyhow::bail!("Process stderr not available");
+                }
+            } else {
+                anyhow::bail!("Child process not running");
+            }
+        } else {
+            anyhow::bail!("Process not initialized");
+        }
+    }
+
+    /// Gracefully shutdown the child process
+    pub async fn shutdown_process(&mut self) -> Result<()> {
+        if let Some(child_process) = &self.child_process {
+            let mut child_guard = child_process.write().await;
+            if let Some(mut child) = child_guard.take() {
+                // Send a graceful shutdown signal if the process is still running
+                match child.try_wait() {
+                    Ok(None) => {
+                        // Process is still running, attempt graceful shutdown
+                        if let Some(stdin) = child.stdin.as_mut() {
+                            // Send EOF to stdin to signal shutdown
+                            let _ = stdin.shutdown().await;
+                        }
+                        
+                        // Wait for process to exit with timeout
+                        tokio::select! {
+                            result = child.wait() => {
+                                match result {
+                                    Ok(exit_status) => {
+                                        if exit_status.success() {
+                                            println!("Process exited successfully");
+                                        } else {
+                                            println!("Process exited with status: {}", exit_status);
+                                        }
+                                    }
+                                    Err(e) => {
+                                        println!("Error waiting for process: {}", e);
+                                    }
+                                }
+                            }
+                            _ = tokio::time::sleep(std::time::Duration::from_secs(5)) => {
+                                // Force kill if graceful shutdown takes too long
+                                println!("Process did not exit gracefully, killing...");
+                                let _ = child.kill().await;
+                            }
+                        }
+                    }
+                    Ok(Some(exit_status)) => {
+                        // Process already exited
+                        println!("Process already exited with status: {}", exit_status);
+                    }
+                    Err(e) => {
+                        println!("Error checking process status: {}", e);
+                    }
+                }
+            }
+        }
+        
+        // Update connection state
+        let mut state = self.state.write().await;
+        *state = MCPConnectionState::Disconnected;
+        
+        Ok(())
     }
 
     /// List available tools with graceful degradation

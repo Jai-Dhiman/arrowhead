@@ -41,21 +41,56 @@ Arrowhead is a Rust-based framework that provides intelligent productivity manag
 
 ## Installation
 
-1. Clone the repository:
+### 🚀 One-Line Installation (Recommended)
+
+**macOS / Linux:**
+```bash
+curl -fsSL https://install.arrowhead.dev | sh
+```
+
+**Windows (PowerShell):**
+```powershell
+iwr https://install.arrowhead.dev/windows | iex
+```
+
+### 📦 Alternative Installation Methods
+
+**From Source:**
 ```bash
 git clone https://github.com/yourusername/arrowhead.git
 cd arrowhead
-```
-
-2. Build the project:
-```bash
 cargo build --release
-```
-
-3. (Optional) Install globally:
-```bash
 cargo install --path .
 ```
+
+**Using Cargo (requires Rust):**
+```bash
+cargo install arrowhead
+```
+
+**Download Pre-built Binaries:**
+- Visit the [releases page](https://github.com/yourusername/arrowhead/releases)
+- Download the appropriate binary for your platform
+- Extract and add to your PATH
+
+### 🎯 Quick Start
+
+After installation, get started in 2 minutes:
+
+1. **Set up your AI API key** (get a free Gemini key at [aistudio.google.com](https://aistudio.google.com/app/apikey)):
+   ```bash
+   export GEMINI_API_KEY="your_api_key_here"
+   ```
+
+2. **Start the interactive AI assistant**:
+   ```bash
+   arrowhead
+   ```
+
+3. **Try some natural language commands**:
+   - "Create a todo to review the quarterly report"
+   - "What should I work on today?"
+   - "Help me organize my tasks"
 
 ## Configuration
 
