@@ -45,19 +45,19 @@ Arrowhead is a Rust-based framework that provides intelligent productivity manag
 
 **macOS / Linux:**
 ```bash
-curl -fsSL https://install.arrowhead.dev | sh
+curl -fsSL https://raw.githubusercontent.com/Jai-Dhiman/arrowhead/main/install.sh | sh
 ```
 
 **Windows (PowerShell):**
 ```powershell
-iwr https://install.arrowhead.dev/windows | iex
+iwr https://raw.githubusercontent.com/Jai-Dhiman/arrowhead/main/install.ps1 | iex
 ```
 
 ### 📦 Alternative Installation Methods
 
 **From Source:**
 ```bash
-git clone https://github.com/yourusername/arrowhead.git
+git clone https://github.com/Jai-Dhiman/arrowhead.git
 cd arrowhead
 cargo build --release
 cargo install --path .
@@ -69,7 +69,7 @@ cargo install arrowhead
 ```
 
 **Download Pre-built Binaries:**
-- Visit the [releases page](https://github.com/yourusername/arrowhead/releases)
+- Visit the [releases page](https://github.com/Jai-Dhiman/arrowhead/releases)
 - Download the appropriate binary for your platform
 - Extract and add to your PATH
 

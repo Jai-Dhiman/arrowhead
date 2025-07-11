@@ -1,3 +1,2 @@
-# Netlify redirects for installation scripts
-/ https://raw.githubusercontent.com/yourusername/arrowhead/main/install.sh 200
-/windows https://raw.githubusercontent.com/yourusername/arrowhead/main/install.ps1 200
+# GitHub Pages redirects for installation scripts
+# For GitHub Pages, we'll use JavaScript redirects in the HTML files

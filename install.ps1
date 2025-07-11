@@ -10,7 +10,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 # Constants
-$GITHUB_REPO = "yourusername/arrowhead"
+$GITHUB_REPO = "Jai-Dhiman/arrowhead"
 $BINARY_NAME = "arrowhead.exe"
 
 # Helper functions

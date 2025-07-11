@@ -13,7 +13,7 @@ BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
 # Constants
-GITHUB_REPO="yourusername/arrowhead"
+GITHUB_REPO="Jai-Dhiman/arrowhead"
 BINARY_NAME="arrowhead"
 INSTALL_DIR="/usr/local/bin"
 

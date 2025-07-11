@@ -2,11 +2,11 @@
 name = "arrowhead"
 version = "0.1.0"
 edition = "2021"
-authors = ["Your Name <your.email@example.com>"]
+authors = ["Jai Dhiman <jai.dhiman@example.com>"]
 description = "AI-powered productivity assistant with intelligent task management, workflow automation, and natural language processing"
 readme = "README.md"
-homepage = "https://github.com/yourusername/arrowhead"
-repository = "https://github.com/yourusername/arrowhead"
+homepage = "https://github.com/Jai-Dhiman/arrowhead"
+repository = "https://github.com/Jai-Dhiman/arrowhead"
 license = "MIT"
 keywords = ["ai", "productivity", "workflow", "automation", "cli"]
 categories = ["command-line-utilities", "text-processing"]
