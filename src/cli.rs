@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand, Args};
+use serde::{Deserialize, Serialize};
 
 #[derive(Parser, Debug)]
 #[clap(author, version, about, long_about = None)]
@@ -8,7 +9,7 @@ pub struct Cli {
     pub command: Commands,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum Commands {
     /// Manage todos
     Todo(TodoArgs),
@@ -20,13 +21,13 @@ pub enum Commands {
     Chat(ChatArgs),
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
 pub struct TodoArgs {
     #[clap(subcommand)]
     pub action: TodoAction,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum TodoAction {
     /// Add a new todo
     Add {
@@ -51,13 +52,13 @@ pub enum TodoAction {
     }
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
 pub struct GoalArgs {
     #[clap(subcommand)]
     pub action: GoalAction,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum GoalAction {
     /// Add a new goal
     Add {
@@ -92,13 +93,13 @@ pub enum GoalAction {
     }
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
 pub struct NoteArgs {
     #[clap(subcommand)]
     pub action: NoteAction,
 }
 
-#[derive(Subcommand, Debug)]
+#[derive(Subcommand, Debug, Clone, Serialize, Deserialize)]
 pub enum NoteAction {
     /// Create a new note
     Create {
@@ -129,7 +130,7 @@ pub enum NoteAction {
     }
 }
 
-#[derive(Args, Debug)]
+#[derive(Args, Debug, Clone, Serialize, Deserialize)]
 pub struct ChatArgs {
     /// Optional initial message to start the chat with
     pub message: Option<String>,

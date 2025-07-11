@@ -1,8 +1,8 @@
-use anyhow::{Result, Context};
 use crate::cli::{GoalAction, GoalArgs};
-use crate::obsidian_adapter::{ObsidianAdapter, MarkdownFile, Frontmatter as ObsidianFrontmatter}; // Reusing for parsing
+use crate::obsidian_adapter::{MarkdownFile, ObsidianAdapter}; // Reusing for parsing
 use crate::utils::slugify; // Import slugify from utils
-use serde::{Serialize, Deserialize};
+use anyhow::{Context, Result};
+use serde::{Deserialize, Serialize};
 use serde_yaml;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -23,10 +23,19 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
     let goals_dir = "Goals"; // Define a base directory for goals
 
     match args.action {
-        GoalAction::Add { title, description, target_date, tags } => {
+        GoalAction::Add {
+            title,
+            description,
+            target_date,
+            tags,
+        } => {
             println!("Attempting to add goal: '{}'", title);
 
-            let fm_tags = if tags.is_empty() { None } else { Some(tags.clone()) };
+            let fm_tags = if tags.is_empty() {
+                None
+            } else {
+                Some(tags.clone())
+            };
             let frontmatter = GoalFrontmatter {
                 description: description.clone(),
                 target_date: target_date.clone(),
@@ -40,7 +49,12 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             let goal_body_title = format!("# {}", title);
             let goal_body_desc = description.map_or_else(String::new, |d| format!("\n\n{}", d));
 
-            let full_content = format!("---\n{}---\n\n{}{}", fm_yaml.trim(), goal_body_title, goal_body_desc);
+            let full_content = format!(
+                "---\n{}---\n\n{}{}",
+                fm_yaml.trim(),
+                goal_body_title,
+                goal_body_desc
+            );
 
             let slug = slugify(&title);
             let max_slug_len = 50;
@@ -52,7 +66,9 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
 
             let file_name = format!("{}/{}.md", goals_dir, truncated_slug);
 
-            adapter.create_file(&file_name, &full_content).await
+            adapter
+                .create_file(&file_name, &full_content)
+                .await
                 .context(format!("Failed to create goal file '{}'", file_name))?;
 
             println!("Goal '{}' created as '{}'.", title, file_name);
@@ -64,14 +80,26 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             }
             println!("(Placeholder: Actual goal listing logic to be implemented. Similar challenges to other types.)");
         }
-        GoalAction::Update { id, title: new_title, description: new_description, status: new_status, target_date: new_target_date } => {
+        GoalAction::Update {
+            id,
+            title: new_title,
+            description: new_description,
+            status: new_status,
+            target_date: new_target_date,
+        } => {
             let file_slug = slugify(&id); // Assuming id is the original title/slug
             let file_name = format!("{}/{}.md", goals_dir, file_slug);
             println!("Attempting to update goal: '{}'", file_name);
 
             // Fetch existing file data
-            let md_file_data = adapter.get_markdown_file_data(&file_name).await
-                .context(format!("Failed to retrieve goal '{}' for update.", file_name))?;
+            let md_file_data =
+                adapter
+                    .get_markdown_file_data(&file_name)
+                    .await
+                    .context(format!(
+                        "Failed to retrieve goal '{}' for update.",
+                        file_name
+                    ))?;
 
             // Deserialize existing frontmatter specifically for Goal
             // The generic ObsidianFrontmatter might not have all goal fields.
@@ -83,8 +111,9 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             // that can be converted to GoalFrontmatter or directly use serde_yaml::Value.
 
             let raw_fm_str = md_file_data.frontmatter_to_string().unwrap_or_default();
-            let mut fm: GoalFrontmatter = serde_yaml::from_str(&raw_fm_str)
-                .unwrap_or_else(|_| GoalFrontmatter { // Defaults if parsing fails or empty
+            let mut fm: GoalFrontmatter =
+                serde_yaml::from_str(&raw_fm_str).unwrap_or_else(|_| GoalFrontmatter {
+                    // Defaults if parsing fails or empty
                     description: None,
                     target_date: None,
                     tags: md_file_data.frontmatter.tags.clone(), // Get tags from generic parser
@@ -92,9 +121,15 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
                 });
 
             // Update fields
-            if let Some(desc) = new_description { fm.description = Some(desc); }
-            if let Some(status) = new_status { fm.status = status; }
-            if let Some(td) = new_target_date { fm.target_date = Some(td); }
+            if let Some(desc) = new_description {
+                fm.description = Some(desc);
+            }
+            if let Some(status) = new_status {
+                fm.status = status;
+            }
+            if let Some(td) = new_target_date {
+                fm.target_date = Some(td);
+            }
             // Title change would mean filename change - more complex, handle separately or disallow for now.
             // For now, if new_title is provided, we update it in the content body (H1).
 
@@ -104,15 +139,20 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             // Reconstruct H1 title in body
             if current_body_content.starts_with("# ") || new_title.is_some() {
                 // Find the first newline to separate H1 from rest of body
-                let body_after_h1 = current_body_content.find("\n\n").map_or("", |idx| &current_body_content[idx..]);
+                let body_after_h1 = current_body_content
+                    .find("\n\n")
+                    .map_or("", |idx| &current_body_content[idx..]);
                 current_body_content = format!("# {}{}", final_title, body_after_h1);
             }
-
 
             let updated_fm_yaml = serde_yaml::to_string(&fm)
                 .context("Failed to serialize updated goal frontmatter to YAML")?;
 
-            let new_full_content = format!("---\n{}---\n\n{}", updated_fm_yaml.trim(), current_body_content);
+            let new_full_content = format!(
+                "---\n{}---\n\n{}",
+                updated_fm_yaml.trim(),
+                current_body_content
+            );
 
             // If title changes, we might want to rename the file. This is a more advanced feature.
             // For now, we update content in place. If new_title results in a new slug, user needs to be aware.
@@ -131,7 +171,9 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
                 file_name
             };
 
-            adapter.update_file(&target_file_name, &new_full_content).await
+            adapter
+                .update_file(&target_file_name, &new_full_content)
+                .await
                 .context(format!("Failed to update goal file '{}'", target_file_name))?;
 
             println!("Goal '{}' updated.", target_file_name);
@@ -140,8 +182,10 @@ pub async fn handle_goal_command(args: GoalArgs, adapter: &ObsidianAdapter) -> R
             let file_name = format!("{}/{}.md", goals_dir, slugify(&id));
             println!("Viewing goal: '{}'", file_name);
 
-            let content = adapter.get_file(&file_name).await
-                .context(format!("Failed to retrieve goal '{}' for viewing.", file_name))?;
+            let content = adapter.get_file(&file_name).await.context(format!(
+                "Failed to retrieve goal '{}' for viewing.",
+                file_name
+            ))?;
 
             println!("--- Content of {} ---", file_name);
             println!("{}", content);
